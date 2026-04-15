@@ -1,0 +1,7 @@
+tunnel: <YOUR_TUNNEL_UUID>
+credentials-file: /root/.cloudflared/<YOUR_TUNNEL_UUID>.json
+
+ingress:
+  - hostname: models.sanaorbit.space
+    service: http://localhost:3000
+  - service: http_status:404
