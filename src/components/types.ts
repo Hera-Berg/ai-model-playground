@@ -13,8 +13,4 @@ export type SessionStatus =
   | "ready"
   | "error";
 
-export interface CostEstimate {
-  gpu: string;
-  vramGb: number;
-  perSecondUsd: number;
-}
+export type { ResolveResult } from "@/lib/estimate";

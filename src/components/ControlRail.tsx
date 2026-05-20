@@ -1,4 +1,4 @@
-import type { SessionStatus } from "./types";
+import type { ResolveResult, SessionStatus } from "./types";
 import StatusStrip from "./StatusStrip";
 
 interface ControlRailProps {
@@ -7,6 +7,9 @@ interface ControlRailProps {
   modelRef: string;
   onModelRefChange: (v: string) => void;
   status: SessionStatus;
+  estimate: ResolveResult | null;
+  resolving: boolean;
+  resolveError: string | null;
 }
 
 export default function ControlRail({
@@ -15,6 +18,9 @@ export default function ControlRail({
   modelRef,
   onModelRefChange,
   status,
+  estimate,
+  resolving,
+  resolveError,
 }: ControlRailProps) {
   return (
     <aside className="flex h-full w-full flex-col bg-rail md:w-[360px] md:shrink-0">
@@ -57,22 +63,17 @@ export default function ControlRail({
             className="mt-2 w-full rounded-well bg-rail-well px-3 py-2.5 font-mono text-[13px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
           />
           <p className="mt-1.5 text-[11px] text-rail-muted">
-            Estimating size and rate comes online in a later step.
+            Read straight from Hugging Face to size the GPU and estimate the
+            rate.
           </p>
         </div>
 
-        {/* Cost block — placeholder readout for now */}
-        <div className="rounded-well border border-rail-line p-3">
-          <p className="eyebrow text-rail-muted">Estimated cost</p>
-          <div className="mt-2 flex items-baseline gap-1.5 font-mono">
-            <span className="text-rail-muted text-[13px]">$</span>
-            <span className="text-rail-value text-xl">—.——</span>
-            <span className="text-rail-muted text-[11px]">/ sec</span>
-          </div>
-          <p className="mt-1 text-[11px] text-rail-muted">
-            Fills in once a model is resolved.
-          </p>
-        </div>
+        {/* Cost block — live readout */}
+        <CostBlock
+          estimate={estimate}
+          resolving={resolving}
+          error={resolveError}
+        />
 
         {/* Ignition — stubbed until orchestration lands */}
         <button
@@ -85,7 +86,71 @@ export default function ControlRail({
         </button>
       </div>
 
-      <StatusStrip status={status} />
+      <StatusStrip status={status} estimate={estimate} />
     </aside>
+  );
+}
+
+function CostBlock({
+  estimate,
+  resolving,
+  error,
+}: {
+  estimate: ResolveResult | null;
+  resolving: boolean;
+  error: string | null;
+}) {
+  const hasRate = estimate && estimate.perSecondUsd != null;
+
+  return (
+    <div className="rounded-well border border-rail-line p-3">
+      <p className="eyebrow text-rail-muted">Estimated cost</p>
+
+      {resolving ? (
+        <p className="mt-2 font-mono text-[13px] text-rail-muted">Resolving…</p>
+      ) : error ? (
+        <p className="mt-2 font-mono text-[12px] leading-relaxed text-err">
+          {error}
+        </p>
+      ) : hasRate ? (
+        <>
+          <div className="mt-2 flex items-baseline gap-1.5 font-mono">
+            <span className="text-[13px] text-rail-muted">$</span>
+            <span className="text-xl text-rail-value">
+              {estimate!.perSecondUsd!.toFixed(5)}
+            </span>
+            <span className="text-[11px] text-rail-muted">/ sec</span>
+          </div>
+          <p className="mt-1 font-mono text-[11px] text-rail-muted">
+            ≈ ${estimate!.perHourUsd!.toFixed(2)} / hr while running
+          </p>
+          <p className="mt-2 font-mono text-[11px] text-rail-value">
+            {estimate!.paramsLabel ?? "size n/a"}
+            {estimate!.dtype ? ` · ${estimate!.dtype}` : ""}
+          </p>
+          {estimate!.note && (
+            <p className="mt-1 text-[11px] leading-relaxed text-amber">
+              {estimate!.note}
+            </p>
+          )}
+        </>
+      ) : estimate?.note ? (
+        // Gated or unknown-size: no rate, but we have something to say.
+        <p className="mt-2 text-[12px] leading-relaxed text-amber">
+          {estimate.note}
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 flex items-baseline gap-1.5 font-mono">
+            <span className="text-[13px] text-rail-muted">$</span>
+            <span className="text-xl text-rail-value">—.——</span>
+            <span className="text-[11px] text-rail-muted">/ sec</span>
+          </div>
+          <p className="mt-1 text-[11px] text-rail-muted">
+            Fills in once a model is resolved.
+          </p>
+        </>
+      )}
+    </div>
   );
 }

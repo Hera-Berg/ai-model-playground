@@ -1,4 +1,4 @@
-import type { SessionStatus } from "./types";
+import type { ResolveResult, SessionStatus } from "./types";
 
 const STATE_COPY: Record<
   SessionStatus,
@@ -23,8 +23,22 @@ const STATE_COPY: Record<
   error: { label: "Error", tone: "text-err", dot: "bg-err" },
 };
 
-export default function StatusStrip({ status }: { status: SessionStatus }) {
+export default function StatusStrip({
+  status,
+  estimate,
+}: {
+  status: SessionStatus;
+  estimate: ResolveResult | null;
+}) {
   const s = STATE_COPY[status];
+
+  const gpu = estimate?.gpu ? estimate.gpu.split(" · ")[0] : "—";
+  const vram = estimate?.estVramGb ? `${estimate.estVramGb} GB` : "—";
+  const rate =
+    estimate?.perSecondUsd != null
+      ? `$${estimate.perSecondUsd.toFixed(5)}`
+      : "—";
+
   return (
     <div className="border-t border-rail-line bg-rail-well/60 px-5 py-3">
       <div className="flex items-center gap-2">
@@ -34,15 +48,20 @@ export default function StatusStrip({ status }: { status: SessionStatus }) {
       <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-[11px]">
         <div>
           <dt className="text-rail-muted">GPU</dt>
-          <dd className="text-rail-value">—</dd>
+          <dd
+            className="truncate text-rail-value"
+            title={estimate?.gpu ?? undefined}
+          >
+            {gpu}
+          </dd>
         </div>
         <div>
           <dt className="text-rail-muted">VRAM</dt>
-          <dd className="text-rail-value">—</dd>
+          <dd className="text-rail-value">{vram}</dd>
         </div>
         <div>
           <dt className="text-rail-muted">$/SEC</dt>
-          <dd className="text-rail-value">—</dd>
+          <dd className="text-rail-value">{rate}</dd>
         </div>
       </dl>
     </div>
