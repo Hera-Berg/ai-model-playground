@@ -7,6 +7,8 @@ export interface GpuTier {
   vramGb: number;
   label: string;
   perSecondUsd: number;
+
+  gpuTypeIds: string[];
 }
 
 export interface ResolveResult {
@@ -16,6 +18,8 @@ export interface ResolveResult {
   dtype: string | null;
   estVramGb: number | null;
   gpu: string | null;
+  gpuTypeIds: string[] | null;
+  containerDiskGb: number | null;
   perSecondUsd: number | null;
   perHourUsd: number | null;
   gated: boolean;
@@ -24,12 +28,46 @@ export interface ResolveResult {
 }
 
 export const GPU_TIERS: GpuTier[] = [
-  { vramGb: 16, label: "16 GB · RTX A4000-class", perSecondUsd: 0.00016 },
-  { vramGb: 24, label: "24 GB · RTX 4090 / L4-class", perSecondUsd: 0.0002 },
-  { vramGb: 48, label: "48 GB · A6000 / L40S-class", perSecondUsd: 0.00039 },
-  { vramGb: 80, label: "80 GB · A100 / H100-class", perSecondUsd: 0.00076 },
-  { vramGb: 141, label: "141 GB · H200-class", perSecondUsd: 0.00155 },
-  { vramGb: 180, label: "180 GB · pro-class", perSecondUsd: 0.0024 },
+  {
+    vramGb: 16,
+    label: "16 GB · RTX A4000-class",
+    perSecondUsd: 0.00016,
+    gpuTypeIds: ["NVIDIA RTX A4000", "NVIDIA RTX 2000 Ada Generation"],
+  },
+  {
+    vramGb: 24,
+    label: "24 GB · RTX 4090 / L4-class",
+    perSecondUsd: 0.0002,
+    gpuTypeIds: ["NVIDIA GeForce RTX 4090", "NVIDIA L4", "NVIDIA RTX A5000"],
+  },
+  {
+    vramGb: 48,
+    label: "48 GB · A6000 / L40S-class",
+    perSecondUsd: 0.00039,
+    gpuTypeIds: ["NVIDIA L40S", "NVIDIA RTX A6000", "NVIDIA L40", "NVIDIA A40"],
+  },
+  {
+    vramGb: 80,
+    label: "80 GB · A100 / H100-class",
+    perSecondUsd: 0.00076,
+    gpuTypeIds: [
+      "NVIDIA A100 80GB PCIe",
+      "NVIDIA H100 PCIe",
+      "NVIDIA H100 80GB HBM3",
+    ],
+  },
+  {
+    vramGb: 141,
+    label: "141 GB · H200-class",
+    perSecondUsd: 0.00155,
+    gpuTypeIds: ["NVIDIA H200"],
+  },
+  {
+    vramGb: 180,
+    label: "180 GB · pro-class",
+    perSecondUsd: 0.0024,
+    gpuTypeIds: ["NVIDIA B200", "NVIDIA H200"],
+  },
 ];
 
 const DTYPE_BYTES: Record<string, number> = {
@@ -89,9 +127,8 @@ export function weightsBytes(
   if (!st) return null;
   if (st.parameters && Object.keys(st.parameters).length > 0) {
     let bytes = 0;
-    for (const [dt, n] of Object.entries(st.parameters)) {
+    for (const [dt, n] of Object.entries(st.parameters))
       bytes += n * bytesForDtype(dt);
-    }
     return bytes;
   }
   if (typeof st.total === "number") return st.total * 2;
@@ -115,6 +152,10 @@ export function dominantDtype(
 
 export function estimateVramGb(bytes: number): number {
   return (bytes / 1e9) * VRAM_OVERHEAD;
+}
+
+export function containerDiskGb(bytes: number): number {
+  return Math.max(20, Math.ceil((bytes / 1e9) * 2.5));
 }
 
 export function pickTier(vramGb: number): { tier: GpuTier; fits: boolean } {
@@ -146,6 +187,8 @@ export function buildEstimate(
       dtype: null,
       estVramGb: null,
       gpu: null,
+      gpuTypeIds: null,
+      containerDiskGb: null,
       perSecondUsd: null,
       perHourUsd: null,
       gated,
@@ -165,6 +208,8 @@ export function buildEstimate(
     dtype: dominantDtype(st ?? null),
     estVramGb: Math.ceil(vram),
     gpu: tier.label,
+    gpuTypeIds: tier.gpuTypeIds,
+    containerDiskGb: containerDiskGb(bytes),
     perSecondUsd: tier.perSecondUsd,
     perHourUsd: tier.perSecondUsd * 3600,
     gated,

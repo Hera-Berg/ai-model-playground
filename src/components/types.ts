@@ -13,4 +13,12 @@ export type SessionStatus =
   | "ready"
   | "error";
 
+export interface Session {
+  endpointId: string;
+  templateId: string;
+  gpu: string | null;
+}
+
+export type KeyStatus = "unknown" | "checking" | "valid" | "invalid";
+
 export type { ResolveResult } from "@/lib/estimate";

@@ -1,4 +1,4 @@
-import type { ResolveResult, SessionStatus } from "./types";
+import type { ResolveResult, Session, SessionStatus } from "./types";
 
 const STATE_COPY: Record<
   SessionStatus,
@@ -26,13 +26,16 @@ const STATE_COPY: Record<
 export default function StatusStrip({
   status,
   estimate,
+  session,
 }: {
   status: SessionStatus;
   estimate: ResolveResult | null;
+  session: Session | null;
 }) {
   const s = STATE_COPY[status];
 
-  const gpu = estimate?.gpu ? estimate.gpu.split(" · ")[0] : "—";
+  const gpu =
+    session?.gpu ?? (estimate?.gpu ? estimate.gpu.split(" · ")[0] : "—");
   const vram = estimate?.estVramGb ? `${estimate.estVramGb} GB` : "—";
   const rate =
     estimate?.perSecondUsd != null
@@ -50,7 +53,7 @@ export default function StatusStrip({
           <dt className="text-rail-muted">GPU</dt>
           <dd
             className="truncate text-rail-value"
-            title={estimate?.gpu ?? undefined}
+            title={session?.gpu ?? estimate?.gpu ?? undefined}
           >
             {gpu}
           </dd>

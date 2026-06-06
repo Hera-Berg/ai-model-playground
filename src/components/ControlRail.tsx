@@ -1,5 +1,6 @@
-import type { ResolveResult, SessionStatus } from "./types";
+import type { KeyStatus, ResolveResult, Session, SessionStatus } from "./types";
 import StatusStrip from "./StatusStrip";
+import ConnectionPanel from "./ConnectionPanel";
 
 interface ControlRailProps {
   systemPrompt: string;
@@ -10,18 +11,49 @@ interface ControlRailProps {
   estimate: ResolveResult | null;
   resolving: boolean;
   resolveError: string | null;
+
+  runpodKey: string;
+  onRunpodKeyChange: (v: string) => void;
+  keyStatus: KeyStatus;
+  keyError: string | null;
+  onTestKey: () => void;
+  hfToken: string;
+  onHfTokenChange: (v: string) => void;
+
+  session: Session | null;
+  launchError: string | null;
+  onLaunch: () => void;
+  onStop: () => void;
 }
 
-export default function ControlRail({
-  systemPrompt,
-  onSystemPromptChange,
-  modelRef,
-  onModelRefChange,
-  status,
-  estimate,
-  resolving,
-  resolveError,
-}: ControlRailProps) {
+export default function ControlRail(props: ControlRailProps) {
+  const {
+    systemPrompt,
+    onSystemPromptChange,
+    modelRef,
+    onModelRefChange,
+    status,
+    estimate,
+    resolving,
+    resolveError,
+    runpodKey,
+    onRunpodKeyChange,
+    keyStatus,
+    keyError,
+    onTestKey,
+    hfToken,
+    onHfTokenChange,
+    session,
+    launchError,
+    onLaunch,
+    onStop,
+  } = props;
+
+  const hasRate = Boolean(estimate && estimate.perSecondUsd != null);
+  const hasKey = runpodKey.trim().length > 0;
+  const isBusy = status === "launching";
+  const isRunning = session != null;
+
   return (
     <aside className="flex h-full w-full flex-col bg-rail md:w-[360px] md:shrink-0">
       <div className="border-b border-rail-line px-5 py-4">
@@ -31,8 +63,17 @@ export default function ControlRail({
         </h1>
       </div>
 
-      <div className="scroll-thin flex-1 space-y-6 overflow-y-auto px-5 py-5">
-        {/* System prompt — explicitly survives a chat reset */}
+      <div className="scroll-thin flex-1 space-y-5 overflow-y-auto px-5 py-5">
+        <ConnectionPanel
+          runpodKey={runpodKey}
+          onRunpodKeyChange={onRunpodKeyChange}
+          keyStatus={keyStatus}
+          keyError={keyError}
+          onTest={onTestKey}
+          hfToken={hfToken}
+          onHfTokenChange={onHfTokenChange}
+        />
+
         <div>
           <label htmlFor="system-prompt" className="eyebrow text-rail-muted">
             System prompt
@@ -42,7 +83,7 @@ export default function ControlRail({
             value={systemPrompt}
             onChange={(e) => onSystemPromptChange(e.target.value)}
             placeholder="You are a helpful assistant…"
-            rows={6}
+            rows={5}
             className="mt-2 w-full resize-y rounded-well bg-rail-well px-3 py-2.5 font-mono text-[13px] leading-relaxed text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
           />
           <p className="mt-1.5 text-[11px] text-rail-muted">
@@ -50,7 +91,6 @@ export default function ControlRail({
           </p>
         </div>
 
-        {/* Model reference */}
         <div>
           <label htmlFor="model-ref" className="eyebrow text-rail-muted">
             Hugging Face model
@@ -59,8 +99,9 @@ export default function ControlRail({
             id="model-ref"
             value={modelRef}
             onChange={(e) => onModelRefChange(e.target.value)}
+            disabled={isRunning}
             placeholder="Qwen/Qwen3-8B  or  paste the model URL"
-            className="mt-2 w-full rounded-well bg-rail-well px-3 py-2.5 font-mono text-[13px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
+            className="mt-2 w-full rounded-well bg-rail-well px-3 py-2.5 font-mono text-[13px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1 disabled:opacity-60"
           />
           <p className="mt-1.5 text-[11px] text-rail-muted">
             Read straight from Hugging Face to size the GPU and estimate the
@@ -68,25 +109,53 @@ export default function ControlRail({
           </p>
         </div>
 
-        {/* Cost block — live readout */}
         <CostBlock
           estimate={estimate}
           resolving={resolving}
           error={resolveError}
         />
 
-        {/* Ignition — stubbed until orchestration lands */}
-        <button
-          type="button"
-          disabled
-          title="Launching gets wired up in a later step"
-          className="w-full cursor-not-allowed rounded-well bg-amber/40 px-4 py-2.5 font-sans text-sm font-semibold text-rail"
-        >
-          Launch model
-        </button>
+        {/* Ignition / teardown */}
+        {isRunning ? (
+          <button
+            type="button"
+            onClick={onStop}
+            className="w-full rounded-well border border-err/60 bg-transparent px-4 py-2.5 font-sans text-sm font-semibold text-err transition-colors hover:bg-err/10"
+          >
+            Stop &amp; delete endpoint
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onLaunch}
+            disabled={!hasRate || !hasKey || isBusy}
+            title={
+              !hasKey
+                ? "Add your RunPod key"
+                : !hasRate
+                  ? "Resolve a model first"
+                  : undefined
+            }
+            className="w-full rounded-well bg-amber px-4 py-2.5 font-sans text-sm font-semibold text-rail transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-amber/40"
+          >
+            {isBusy ? "Launching…" : "Launch model"}
+          </button>
+        )}
+
+        {launchError && (
+          <p className="text-[11px] leading-relaxed text-err">{launchError}</p>
+        )}
+        {isRunning && (
+          <p className="font-mono text-[11px] leading-relaxed text-rail-muted">
+            Endpoint{" "}
+            <span className="text-rail-value">{session!.endpointId}</span> is
+            live. It warms up on your first message — that cold start is where
+            billing begins.
+          </p>
+        )}
       </div>
 
-      <StatusStrip status={status} estimate={estimate} />
+      <StatusStrip status={status} estimate={estimate} session={session} />
     </aside>
   );
 }
@@ -135,7 +204,6 @@ function CostBlock({
           )}
         </>
       ) : estimate?.note ? (
-        // Gated or unknown-size: no rate, but we have something to say.
         <p className="mt-2 text-[12px] leading-relaxed text-amber">
           {estimate.note}
         </p>
