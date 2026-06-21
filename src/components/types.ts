@@ -16,6 +16,7 @@ export type SessionStatus =
 export interface Session {
   endpointId: string;
   templateId: string;
+  model: string;
   gpu: string | null;
 }
 

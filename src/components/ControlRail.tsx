@@ -19,6 +19,9 @@ interface ControlRailProps {
   onTestKey: () => void;
   hfToken: string;
   onHfTokenChange: (v: string) => void;
+  workerImage: string;
+  onWorkerImageChange: (v: string) => void;
+  defaultImage: string;
 
   session: Session | null;
   launchError: string | null;
@@ -43,6 +46,9 @@ export default function ControlRail(props: ControlRailProps) {
     onTestKey,
     hfToken,
     onHfTokenChange,
+    workerImage,
+    onWorkerImageChange,
+    defaultImage,
     session,
     launchError,
     onLaunch,
@@ -72,6 +78,9 @@ export default function ControlRail(props: ControlRailProps) {
           onTest={onTestKey}
           hfToken={hfToken}
           onHfTokenChange={onHfTokenChange}
+          workerImage={workerImage}
+          onWorkerImageChange={onWorkerImageChange}
+          defaultImage={defaultImage}
         />
 
         <div>

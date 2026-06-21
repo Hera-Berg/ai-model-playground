@@ -9,6 +9,9 @@ interface ConnectionPanelProps {
   onTest: () => void;
   hfToken: string;
   onHfTokenChange: (v: string) => void;
+  workerImage: string;
+  onWorkerImageChange: (v: string) => void;
+  defaultImage: string;
 }
 
 const STATUS_DOT: Record<KeyStatus, string> = {
@@ -33,6 +36,9 @@ export default function ConnectionPanel({
   onTest,
   hfToken,
   onHfTokenChange,
+  workerImage,
+  onWorkerImageChange,
+  defaultImage,
 }: ConnectionPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -81,19 +87,42 @@ export default function ConnectionPanel({
         onClick={() => setShowAdvanced((s) => !s)}
         className="mt-2 font-mono text-[10px] uppercase tracking-wider text-rail-muted hover:text-rail-value"
       >
-        {showAdvanced ? "− Hugging Face token" : "+ Hugging Face token"}
+        {showAdvanced ? "− Advanced" : "+ Advanced"}
       </button>
 
       {showAdvanced && (
-        <div className="mt-2">
-          <input
-            type="password"
-            value={hfToken}
-            onChange={(e) => onHfTokenChange(e.target.value)}
-            placeholder="hf_… (only for gated models)"
-            autoComplete="off"
-            className="w-full rounded-well bg-rail-well px-3 py-2 font-mono text-[12px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
-          />
+        <div className="mt-2 space-y-2">
+          <div>
+            <label className="font-mono text-[10px] text-rail-muted">
+              Hugging Face token
+            </label>
+            <input
+              type="password"
+              value={hfToken}
+              onChange={(e) => onHfTokenChange(e.target.value)}
+              placeholder="hf_… (only for gated models)"
+              autoComplete="off"
+              className="mt-1 w-full rounded-well bg-rail-well px-3 py-2 font-mono text-[12px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
+            />
+          </div>
+          <div>
+            <label className="font-mono text-[10px] text-rail-muted">
+              vLLM worker image
+            </label>
+            <input
+              type="text"
+              value={workerImage}
+              onChange={(e) => onWorkerImageChange(e.target.value)}
+              placeholder={defaultImage}
+              autoComplete="off"
+              spellCheck={false}
+              className="mt-1 w-full rounded-well bg-rail-well px-3 py-2 font-mono text-[11px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
+            />
+            <p className="mt-1 text-[10px] leading-relaxed text-rail-muted">
+              Leave blank to use the default. If a model fails to load, paste
+              the image tag RunPod&apos;s own Serverless vLLM quick-deploy uses.
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ControlRail from "@/components/ControlRail";
 import ChatSurface from "@/components/ChatSurface";
 import type {
@@ -17,6 +17,9 @@ function id() {
 
 const KEY_STORE = "mp_runpod_key";
 const HF_STORE = "mp_hf_token";
+const IMG_STORE = "mp_worker_image";
+
+const DEFAULT_WORKER_IMAGE = "runpod/worker-v1-vllm:v2.5.0stable-cuda12.1.0";
 
 export default function Page() {
   const [systemPrompt, setSystemPrompt] = useState("");
@@ -32,16 +35,30 @@ export default function Page() {
   const [keyStatus, setKeyStatus] = useState<KeyStatus>("unknown");
   const [keyError, setKeyError] = useState<string | null>(null);
   const [hfToken, setHfToken] = useState("");
+  const [workerImage, setWorkerImage] = useState("");
 
   const [session, setSession] = useState<Session | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState(false);
+
+  const streamAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     try {
       setRunpodKey(sessionStorage.getItem(KEY_STORE) ?? "");
       setHfToken(sessionStorage.getItem(HF_STORE) ?? "");
+      setWorkerImage(sessionStorage.getItem(IMG_STORE) ?? "");
     } catch {
-      /* sessionStorage unavailable — fine */
+      /* sessionStorage unavailable */
+    }
+  }, []);
+
+  const onWorkerImageChange = useCallback((v: string) => {
+    setWorkerImage(v);
+    try {
+      sessionStorage.setItem(IMG_STORE, v);
+    } catch {
+      /* ignore */
     }
   }, []);
 
@@ -141,6 +158,7 @@ export default function Page() {
         body: JSON.stringify({
           modelRef: modelRef.trim(),
           hfToken: hfToken.trim() || undefined,
+          workerImage: workerImage.trim() || undefined,
         }),
       });
       const data = await res.json();
@@ -152,6 +170,7 @@ export default function Page() {
       setSession({
         endpointId: data.endpointId,
         templateId: data.templateId,
+        model: data.model,
         gpu: data.gpu ?? null,
       });
       setStatus("ready");
@@ -164,6 +183,8 @@ export default function Page() {
   async function stop() {
     if (!session) return;
     const current = session;
+    streamAbort.current?.abort();
+    setStreaming(false);
     setSession(null);
     setStatus("idle");
     setLaunchError(null);
@@ -192,20 +213,110 @@ export default function Page() {
     }
   }
 
-  function handleSend(text: string) {
+  function patchMessage(msgId: string, content: string) {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msgId ? { ...m, content } : m)),
+    );
+  }
+
+  async function handleSend(text: string) {
+    if (!session || streaming) return;
+
     const userMsg: ChatMessage = { id: id(), role: "user", content: text };
-    const stub: ChatMessage = {
-      id: id(),
-      role: "assistant",
-      content: session
-        ? `[stub reply] Endpoint ${session.endpointId} is live, but real chat lands in the next step. You said: "${text}"`
-        : `[stub reply] No model is running yet. You said: "${text}"`,
-    };
-    setMessages((prev) => [...prev, userMsg, stub]);
+    const assistantId = id();
+    const history = [...messages, userMsg].map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { id: assistantId, role: "assistant", content: "" },
+    ]);
+    setStreaming(true);
+    setStatus("warming");
+
+    const ctrl = new AbortController();
+    streamAbort.current = ctrl;
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-runpod-key": runpodKey.trim(),
+        },
+        body: JSON.stringify({
+          endpointId: session.endpointId,
+          model: session.model,
+          systemPrompt,
+          messages: history,
+        }),
+        signal: ctrl.signal,
+      });
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        patchMessage(assistantId, `⚠️ ${data.error ?? "Request failed."}`);
+        setStatus("error");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let acc = "";
+      let gotToken = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const payload = t.slice(5).trim();
+          if (payload === "[DONE]") continue;
+          try {
+            const obj = JSON.parse(payload);
+            const delta = obj.choices?.[0]?.delta?.content ?? "";
+            if (delta) {
+              if (!gotToken) {
+                gotToken = true;
+                setStatus("ready");
+              }
+              acc += delta;
+              patchMessage(assistantId, acc);
+            }
+          } catch {
+            /* ignore keep-alive / non-JSON lines */
+          }
+        }
+      }
+
+      if (!gotToken) {
+        patchMessage(assistantId, "⚠️ The model returned no output.");
+      }
+      setStatus("ready");
+    } catch (err) {
+      if ((err as { name?: string }).name !== "AbortError") {
+        patchMessage(assistantId, "⚠️ The stream was interrupted.");
+        setStatus("error");
+      }
+    } finally {
+      setStreaming(false);
+      streamAbort.current = null;
+    }
   }
 
   function handleReset() {
+    streamAbort.current?.abort();
+    setStreaming(false);
     setMessages([]);
+    if (session) setStatus("ready");
   }
 
   return (
@@ -226,6 +337,9 @@ export default function Page() {
         onTestKey={testKey}
         hfToken={hfToken}
         onHfTokenChange={onHfTokenChange}
+        workerImage={workerImage}
+        onWorkerImageChange={onWorkerImageChange}
+        defaultImage={DEFAULT_WORKER_IMAGE}
         session={session}
         launchError={launchError}
         onLaunch={launch}
@@ -234,6 +348,8 @@ export default function Page() {
       <ChatSurface
         modelRef={modelRef}
         messages={messages}
+        canChat={session != null}
+        busy={streaming}
         onSend={handleSend}
         onReset={handleReset}
       />

@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
   }
   const hfToken: string | null = body.hfToken?.trim() || null;
   const maxModelLen: number = Number(body.maxModelLen) || 8192;
+  const workerImage: string | null = body.workerImage?.trim() || null;
 
   const hf = await fetchModelInfo(repoId, hfToken);
   if (!hf.ok) {
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
     containerDiskGb: est.containerDiskGb,
     maxModelLen,
     hfToken,
+    image: workerImage,
   });
   if (!tmpl.ok || !tmpl.data?.id) {
     return NextResponse.json(
@@ -76,6 +78,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     endpointId: ep.data.id,
     templateId: tmpl.data.id,
+    model: repoId,
     gpu: est.gpu,
     estVramGb: est.estVramGb,
     perSecondUsd: est.perSecondUsd,

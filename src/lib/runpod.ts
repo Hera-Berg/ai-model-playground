@@ -1,7 +1,8 @@
 const REST = "https://rest.runpod.io/v1";
 
 export const VLLM_IMAGE =
-  process.env.RUNPOD_VLLM_IMAGE || "runpod/worker-v1-vllm:stable-cuda12.1.0";
+  process.env.RUNPOD_VLLM_IMAGE ||
+  "runpod/worker-v1-vllm:v2.5.0stable-cuda12.1.0";
 
 export function resolveKey(headerKey: string | null): string | null {
   return headerKey?.trim() || process.env.RUNPOD_API_KEY || null;
@@ -78,6 +79,7 @@ export interface CreateTemplateInput {
   containerDiskGb: number;
   maxModelLen: number;
   hfToken?: string | null;
+  image?: string | null;
 }
 
 export function createTemplate(key: string, input: CreateTemplateInput) {
@@ -91,7 +93,7 @@ export function createTemplate(key: string, input: CreateTemplateInput) {
     method: "POST",
     body: JSON.stringify({
       name: input.name,
-      imageName: VLLM_IMAGE,
+      imageName: input.image?.trim() || VLLM_IMAGE,
       isServerless: true,
       containerDiskInGb: input.containerDiskGb,
       env,
@@ -116,7 +118,7 @@ export function createEndpoint(key: string, input: CreateEndpointInput) {
       scalerValue: 4,
       workersMin: 0,
       workersMax: 1,
-      idleTimeout: 5,
+      idleTimeout: 60,
     }),
   });
 }
