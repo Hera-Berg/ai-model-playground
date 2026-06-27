@@ -12,6 +12,7 @@ interface ControlRailProps {
   resolving: boolean;
   resolveError: string | null;
 
+  // connection
   runpodKey: string;
   onRunpodKeyChange: (v: string) => void;
   keyStatus: KeyStatus;
@@ -23,6 +24,7 @@ interface ControlRailProps {
   onWorkerImageChange: (v: string) => void;
   defaultImage: string;
 
+  // launch / stop
   session: Session | null;
   launchError: string | null;
   onLaunch: () => void;
@@ -31,28 +33,11 @@ interface ControlRailProps {
 
 export default function ControlRail(props: ControlRailProps) {
   const {
-    systemPrompt,
-    onSystemPromptChange,
-    modelRef,
-    onModelRefChange,
-    status,
-    estimate,
-    resolving,
-    resolveError,
-    runpodKey,
-    onRunpodKeyChange,
-    keyStatus,
-    keyError,
-    onTestKey,
-    hfToken,
-    onHfTokenChange,
-    workerImage,
-    onWorkerImageChange,
-    defaultImage,
-    session,
-    launchError,
-    onLaunch,
-    onStop,
+    systemPrompt, onSystemPromptChange, modelRef, onModelRefChange,
+    status, estimate, resolving, resolveError,
+    runpodKey, onRunpodKeyChange, keyStatus, keyError, onTestKey, hfToken, onHfTokenChange,
+    workerImage, onWorkerImageChange, defaultImage,
+    session, launchError, onLaunch, onStop,
   } = props;
 
   const hasRate = Boolean(estimate && estimate.perSecondUsd != null);
@@ -95,9 +80,7 @@ export default function ControlRail(props: ControlRailProps) {
             rows={5}
             className="mt-2 w-full resize-y rounded-well bg-rail-well px-3 py-2.5 font-mono text-[13px] leading-relaxed text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
           />
-          <p className="mt-1.5 text-[11px] text-rail-muted">
-            Stays put when you reset the chat.
-          </p>
+          <p className="mt-1.5 text-[11px] text-rail-muted">Stays put when you reset the chat.</p>
         </div>
 
         <div>
@@ -113,16 +96,11 @@ export default function ControlRail(props: ControlRailProps) {
             className="mt-2 w-full rounded-well bg-rail-well px-3 py-2.5 font-mono text-[13px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1 disabled:opacity-60"
           />
           <p className="mt-1.5 text-[11px] text-rail-muted">
-            Read straight from Hugging Face to size the GPU and estimate the
-            rate.
+            Read straight from Hugging Face to size the GPU and estimate the rate.
           </p>
         </div>
 
-        <CostBlock
-          estimate={estimate}
-          resolving={resolving}
-          error={resolveError}
-        />
+        <CostBlock estimate={estimate} resolving={resolving} error={resolveError} />
 
         {/* Ignition / teardown */}
         {isRunning ? (
@@ -139,11 +117,7 @@ export default function ControlRail(props: ControlRailProps) {
             onClick={onLaunch}
             disabled={!hasRate || !hasKey || isBusy}
             title={
-              !hasKey
-                ? "Add your RunPod key"
-                : !hasRate
-                  ? "Resolve a model first"
-                  : undefined
+              !hasKey ? "Add your RunPod key" : !hasRate ? "Resolve a model first" : undefined
             }
             className="w-full rounded-well bg-amber px-4 py-2.5 font-sans text-sm font-semibold text-rail transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:bg-amber/40"
           >
@@ -156,10 +130,8 @@ export default function ControlRail(props: ControlRailProps) {
         )}
         {isRunning && (
           <p className="font-mono text-[11px] leading-relaxed text-rail-muted">
-            Endpoint{" "}
-            <span className="text-rail-value">{session!.endpointId}</span> is
-            live. It warms up on your first message — that cold start is where
-            billing begins.
+            Endpoint <span className="text-rail-value">{session!.endpointId}</span> is live. It
+            warms up on your first message — that cold start is where billing begins.
           </p>
         )}
       </div>
@@ -187,16 +159,12 @@ function CostBlock({
       {resolving ? (
         <p className="mt-2 font-mono text-[13px] text-rail-muted">Resolving…</p>
       ) : error ? (
-        <p className="mt-2 font-mono text-[12px] leading-relaxed text-err">
-          {error}
-        </p>
+        <p className="mt-2 font-mono text-[12px] leading-relaxed text-err">{error}</p>
       ) : hasRate ? (
         <>
           <div className="mt-2 flex items-baseline gap-1.5 font-mono">
             <span className="text-[13px] text-rail-muted">$</span>
-            <span className="text-xl text-rail-value">
-              {estimate!.perSecondUsd!.toFixed(5)}
-            </span>
+            <span className="text-xl text-rail-value">{estimate!.perSecondUsd!.toFixed(5)}</span>
             <span className="text-[11px] text-rail-muted">/ sec</span>
           </div>
           <p className="mt-1 font-mono text-[11px] text-rail-muted">
@@ -207,15 +175,11 @@ function CostBlock({
             {estimate!.dtype ? ` · ${estimate!.dtype}` : ""}
           </p>
           {estimate!.note && (
-            <p className="mt-1 text-[11px] leading-relaxed text-amber">
-              {estimate!.note}
-            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-amber">{estimate!.note}</p>
           )}
         </>
       ) : estimate?.note ? (
-        <p className="mt-2 text-[12px] leading-relaxed text-amber">
-          {estimate.note}
-        </p>
+        <p className="mt-2 text-[12px] leading-relaxed text-amber">{estimate.note}</p>
       ) : (
         <>
           <div className="mt-2 flex items-baseline gap-1.5 font-mono">
@@ -223,9 +187,7 @@ function CostBlock({
             <span className="text-xl text-rail-value">—.——</span>
             <span className="text-[11px] text-rail-muted">/ sec</span>
           </div>
-          <p className="mt-1 text-[11px] text-rail-muted">
-            Fills in once a model is resolved.
-          </p>
+          <p className="mt-1 text-[11px] text-rail-muted">Fills in once a model is resolved.</p>
         </>
       )}
     </div>

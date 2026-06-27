@@ -1,3 +1,6 @@
+// Pure, side-effect-free model-size + cost estimation. No network here — the
+// caller fetches Hugging Face and passes the safetensors blob in.
+
 export interface SafeTensors {
   total?: number;
   parameters?: Record<string, number>;
@@ -7,7 +10,9 @@ export interface GpuTier {
   vramGb: number;
   label: string;
   perSecondUsd: number;
-
+  // RunPod gpuTypeIds in priority order. RunPod picks the first available, so
+  // listing a few raises the odds of getting a worker. These are RunPod's
+  // catalog display names and may need adjusting if RunPod renames hardware.
   gpuTypeIds: string[];
 }
 
@@ -27,6 +32,12 @@ export interface ResolveResult {
   note?: string;
 }
 
+/**
+ * Approximate RunPod serverless (flex) rates by VRAM class, with candidate
+ * gpuTypeIds for each. Rates track market pricing — treat as estimates and
+ * update from runpod.io/pricing. This table is the single source of truth for
+ * both the cost feature and GPU selection at launch.
+ */
 export const GPU_TIERS: GpuTier[] = [
   {
     vramGb: 16,
@@ -50,11 +61,7 @@ export const GPU_TIERS: GpuTier[] = [
     vramGb: 80,
     label: "80 GB · A100 / H100-class",
     perSecondUsd: 0.00076,
-    gpuTypeIds: [
-      "NVIDIA A100 80GB PCIe",
-      "NVIDIA H100 PCIe",
-      "NVIDIA H100 80GB HBM3",
-    ],
+    gpuTypeIds: ["NVIDIA A100 80GB PCIe", "NVIDIA H100 PCIe", "NVIDIA H100 80GB HBM3"],
   },
   {
     vramGb: 141,
@@ -71,23 +78,11 @@ export const GPU_TIERS: GpuTier[] = [
 ];
 
 const DTYPE_BYTES: Record<string, number> = {
-  F64: 8,
-  I64: 8,
-  U64: 8,
-  F32: 4,
-  I32: 4,
-  U32: 4,
-  F16: 2,
-  BF16: 2,
-  I16: 2,
-  U16: 2,
-  F8_E4M3: 1,
-  F8_E5M2: 1,
-  I8: 1,
-  U8: 1,
-  BOOL: 1,
-  I4: 0.5,
-  U4: 0.5,
+  F64: 8, I64: 8, U64: 8,
+  F32: 4, I32: 4, U32: 4,
+  F16: 2, BF16: 2, I16: 2, U16: 2,
+  F8_E4M3: 1, F8_E5M2: 1, I8: 1, U8: 1, BOOL: 1,
+  I4: 0.5, U4: 0.5,
 };
 
 const VRAM_OVERHEAD = 1.2;
@@ -121,31 +116,23 @@ export function parseModelRef(input: string): string | null {
   return repo;
 }
 
-export function weightsBytes(
-  st: SafeTensors | undefined | null,
-): number | null {
+export function weightsBytes(st: SafeTensors | undefined | null): number | null {
   if (!st) return null;
   if (st.parameters && Object.keys(st.parameters).length > 0) {
     let bytes = 0;
-    for (const [dt, n] of Object.entries(st.parameters))
-      bytes += n * bytesForDtype(dt);
+    for (const [dt, n] of Object.entries(st.parameters)) bytes += n * bytesForDtype(dt);
     return bytes;
   }
   if (typeof st.total === "number") return st.total * 2;
   return null;
 }
 
-export function dominantDtype(
-  st: SafeTensors | undefined | null,
-): string | null {
+export function dominantDtype(st: SafeTensors | undefined | null): string | null {
   if (!st?.parameters) return null;
   let best: string | null = null;
   let max = -1;
   for (const [dt, n] of Object.entries(st.parameters)) {
-    if (n > max) {
-      max = n;
-      best = dt;
-    }
+    if (n > max) { max = n; best = dt; }
   }
   return best;
 }
@@ -154,15 +141,28 @@ export function estimateVramGb(bytes: number): number {
   return (bytes / 1e9) * VRAM_OVERHEAD;
 }
 
+// Worker container disk must hold the downloaded weights plus vLLM's cache.
+// Roughly 2.5x the weight size, floored at 20 GB.
 export function containerDiskGb(bytes: number): number {
   return Math.max(20, Math.ceil((bytes / 1e9) * 2.5));
 }
 
-export function pickTier(vramGb: number): { tier: GpuTier; fits: boolean } {
-  for (const t of GPU_TIERS) {
-    if (t.vramGb >= vramGb) return { tier: t, fits: true };
+export function pickTier(vramGb: number): { tier: GpuTier; index: number; fits: boolean } {
+  for (let i = 0; i < GPU_TIERS.length; i++) {
+    if (GPU_TIERS[i].vramGb >= vramGb) return { tier: GPU_TIERS[i], index: i, fits: true };
   }
-  return { tier: GPU_TIERS[GPU_TIERS.length - 1], fits: false };
+  return { tier: GPU_TIERS[GPU_TIERS.length - 1], index: GPU_TIERS.length - 1, fits: false };
+}
+
+/**
+ * GPU candidates for a launch: the chosen tier plus every larger tier, in
+ * cheapest-first order. RunPod places on the first available healthy GPU, so an
+ * unavailable small card auto-climbs to a bigger one instead of failing.
+ */
+export function gpuTypeIdsWithFallback(tierIndex: number): string[] {
+  const ids: string[] = [];
+  for (let i = tierIndex; i < GPU_TIERS.length; i++) ids.push(...GPU_TIERS[i].gpuTypeIds);
+  return Array.from(new Set(ids));
 }
 
 export function formatParams(n: number): string {
@@ -198,7 +198,7 @@ export function buildEstimate(
   }
 
   const vram = estimateVramGb(bytes);
-  const { tier, fits } = pickTier(vram);
+  const { tier, index, fits } = pickTier(vram);
   const params = st?.total ?? null;
 
   return {
@@ -208,7 +208,7 @@ export function buildEstimate(
     dtype: dominantDtype(st ?? null),
     estVramGb: Math.ceil(vram),
     gpu: tier.label,
-    gpuTypeIds: tier.gpuTypeIds,
+    gpuTypeIds: gpuTypeIdsWithFallback(index),
     containerDiskGb: containerDiskGb(bytes),
     perSecondUsd: tier.perSecondUsd,
     perHourUsd: tier.perSecondUsd * 3600,

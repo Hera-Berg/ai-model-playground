@@ -28,6 +28,12 @@ const STATUS_LABEL: Record<KeyStatus, string> = {
   invalid: "Failed",
 };
 
+/**
+ * Bring-your-own RunPod key. The key is held only in the browser session and
+ * sent per request; it is never stored server-side. Advanced settings cover an
+ * optional HF token (gated models) and the vLLM worker image (pin a newer tag
+ * if a model needs a more recent vLLM).
+ */
 export default function ConnectionPanel({
   runpodKey,
   onRunpodKeyChange,
@@ -47,13 +53,8 @@ export default function ConnectionPanel({
       <div className="flex items-center justify-between">
         <p className="eyebrow text-rail-muted">RunPod access</p>
         <span className="flex items-center gap-1.5">
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[keyStatus]}`}
-            aria-hidden
-          />
-          <span className="font-mono text-[10px] text-rail-muted">
-            {STATUS_LABEL[keyStatus]}
-          </span>
+          <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[keyStatus]}`} aria-hidden />
+          <span className="font-mono text-[10px] text-rail-muted">{STATUS_LABEL[keyStatus]}</span>
         </span>
       </div>
 
@@ -76,11 +77,7 @@ export default function ConnectionPanel({
         </button>
       </div>
 
-      {keyError && (
-        <p className="mt-1.5 text-[11px] leading-relaxed text-err">
-          {keyError}
-        </p>
-      )}
+      {keyError && <p className="mt-1.5 text-[11px] leading-relaxed text-err">{keyError}</p>}
 
       <button
         type="button"
@@ -93,9 +90,7 @@ export default function ConnectionPanel({
       {showAdvanced && (
         <div className="mt-2 space-y-2">
           <div>
-            <label className="font-mono text-[10px] text-rail-muted">
-              Hugging Face token
-            </label>
+            <label className="font-mono text-[10px] text-rail-muted">Hugging Face token</label>
             <input
               type="password"
               value={hfToken}
@@ -106,9 +101,7 @@ export default function ConnectionPanel({
             />
           </div>
           <div>
-            <label className="font-mono text-[10px] text-rail-muted">
-              vLLM worker image
-            </label>
+            <label className="font-mono text-[10px] text-rail-muted">vLLM worker image</label>
             <input
               type="text"
               value={workerImage}
@@ -119,8 +112,8 @@ export default function ConnectionPanel({
               className="mt-1 w-full rounded-well bg-rail-well px-3 py-2 font-mono text-[11px] text-rail-value shadow-well outline-none ring-amber/60 placeholder:text-rail-muted/60 focus:ring-1"
             />
             <p className="mt-1 text-[10px] leading-relaxed text-rail-muted">
-              Leave blank to use the default. If a model fails to load, paste
-              the image tag RunPod&apos;s own Serverless vLLM quick-deploy uses.
+              Leave blank to use the default. If a model fails to load, paste the
+              image tag RunPod&apos;s own Serverless vLLM quick-deploy uses.
             </p>
           </div>
         </div>

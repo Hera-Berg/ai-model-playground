@@ -19,6 +19,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Eyebrow labels — mono, tracked-out, the "instrument readout" voice */
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -26,6 +27,7 @@ body {
   text-transform: uppercase;
 }
 
+/* Quiet custom scrollbars so the chat surface reads clean */
 .scroll-thin::-webkit-scrollbar {
   width: 8px;
 }
@@ -37,6 +39,7 @@ body {
   background: transparent;
 }
 
+/* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

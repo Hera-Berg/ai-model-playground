@@ -1,8 +1,24 @@
 services:
   app:
     build: .
+    # Published to the host for local debugging. cloudflared reaches the app
+    # over the internal compose network as http://app:3000, so for a pure
+    # tunnel deployment you can remove this ports line.
     ports:
       - "3000:3000"
     env_file:
       - .env
+    restart: unless-stopped
+
+  # Cloudflare Tunnel. Uses the dashboard-managed (token) method: the public
+  # hostname -> service mapping lives in the Cloudflare Zero Trust dashboard,
+  # pointing at http://app:3000. Put the tunnel token in .env as
+  # CLOUDFLARE_TUNNEL_TOKEN. Comment this service out to run app-only.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
     restart: unless-stopped

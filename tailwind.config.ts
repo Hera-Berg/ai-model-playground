@@ -5,19 +5,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // The "machine" — dark control rail
         rail: {
           DEFAULT: "#1C1F27",
-          well: "#12141A",
-          line: "#2A2E38",
-          muted: "#8A8F9A",
-          value: "#EAEBEE",
+          well: "#12141A", // recessed input wells
+          line: "#2A2E38", // hairlines on dark
+          muted: "#8A8F9A", // labels on dark
+          value: "#EAEBEE", // readout values on dark
         },
+        // The "conversation" — light working surface
         surface: "#F4F5F7",
         panel: "#FFFFFF",
-        line: "#E2E3E7",
-        ink: "#16181E",
-        muted: "#65696F",
-        amber: "#F2A60C",
+        line: "#E2E3E7", // hairlines on light
+        ink: "#16181E", // primary text
+        muted: "#65696F", // secondary text on light
+        // Signal colors — used sparingly
+        amber: "#F2A60C", // ignition / live
         ready: "#3FB36F",
         err: "#E5484D",
       },

@@ -1,3 +1,15 @@
+# Locally-managed Cloudflare tunnel config.
+#
+# Use this only if you run the tunnel with `cloudflared tunnel run` and a
+# credentials file (not the dashboard token method). For token-based tunnels,
+# configure ingress in the Cloudflare dashboard instead and ignore this file.
+#
+# 1. cloudflared tunnel login
+# 2. cloudflared tunnel create model-playground
+# 3. Copy the printed tunnel UUID below and the credentials file path.
+# 4. cloudflared tunnel route dns model-playground models.sanaorbit.space
+# 5. cloudflared tunnel --config ./cloudflared/config.yml run
+
 tunnel: <YOUR_TUNNEL_UUID>
 credentials-file: /root/.cloudflared/<YOUR_TUNNEL_UUID>.json
 

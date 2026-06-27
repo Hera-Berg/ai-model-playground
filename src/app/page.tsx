@@ -19,6 +19,7 @@ const KEY_STORE = "mp_runpod_key";
 const HF_STORE = "mp_hf_token";
 const IMG_STORE = "mp_worker_image";
 
+// Shown as the placeholder; mirrors the server-side default in src/lib/runpod.ts.
 const DEFAULT_WORKER_IMAGE = "runpod/worker-v1-vllm:v2.5.0stable-cuda12.1.0";
 
 export default function Page() {
@@ -82,6 +83,7 @@ export default function Page() {
     }
   }, []);
 
+  // Resolve the model from Hugging Face whenever the field settles.
   useEffect(() => {
     const ref = modelRef.trim();
     setResolveError(null);
@@ -96,13 +98,10 @@ export default function Page() {
       try {
         const headers: Record<string, string> = {};
         if (hfToken.trim()) headers["x-hf-token"] = hfToken.trim();
-        const res = await fetch(
-          `/api/model/resolve?ref=${encodeURIComponent(ref)}`,
-          {
-            signal: ctrl.signal,
-            headers,
-          },
-        );
+        const res = await fetch(`/api/model/resolve?ref=${encodeURIComponent(ref)}`, {
+          signal: ctrl.signal,
+          headers,
+        });
         const data = await res.json();
         if (!res.ok) {
           setEstimate(null);
@@ -123,6 +122,8 @@ export default function Page() {
       ctrl.abort();
     };
   }, [modelRef, hfToken]);
+
+  // --- RunPod actions ---
 
   async function testKey() {
     setKeyStatus("checking");
@@ -151,10 +152,7 @@ export default function Page() {
     try {
       const res = await fetch("/api/endpoint/launch", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-runpod-key": runpodKey.trim(),
-        },
+        headers: { "Content-Type": "application/json", "x-runpod-key": runpodKey.trim() },
         body: JSON.stringify({
           modelRef: modelRef.trim(),
           hfToken: hfToken.trim() || undefined,
@@ -191,10 +189,7 @@ export default function Page() {
     try {
       const res = await fetch("/api/endpoint/stop", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-runpod-key": runpodKey.trim(),
-        },
+        headers: { "Content-Type": "application/json", "x-runpod-key": runpodKey.trim() },
         body: JSON.stringify({
           endpointId: current.endpointId,
           templateId: current.templateId,
@@ -207,16 +202,14 @@ export default function Page() {
         );
       }
     } catch {
-      setLaunchError(
-        "Stop request failed — verify teardown in your RunPod dashboard.",
-      );
+      setLaunchError("Stop request failed — verify teardown in your RunPod dashboard.");
     }
   }
 
+  // --- Chat (real streaming) ---
+
   function patchMessage(msgId: string, content: string) {
-    setMessages((prev) =>
-      prev.map((m) => (m.id === msgId ? { ...m, content } : m)),
-    );
+    setMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, content } : m)));
   }
 
   async function handleSend(text: string) {
@@ -224,10 +217,7 @@ export default function Page() {
 
     const userMsg: ChatMessage = { id: id(), role: "user", content: text };
     const assistantId = id();
-    const history = [...messages, userMsg].map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
+    const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
 
     setMessages((prev) => [
       ...prev,
@@ -235,7 +225,7 @@ export default function Page() {
       { id: assistantId, role: "assistant", content: "" },
     ]);
     setStreaming(true);
-    setStatus("warming");
+    setStatus("warming"); // until the first token arrives
 
     const ctrl = new AbortController();
     streamAbort.current = ctrl;
@@ -243,10 +233,7 @@ export default function Page() {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-runpod-key": runpodKey.trim(),
-        },
+        headers: { "Content-Type": "application/json", "x-runpod-key": runpodKey.trim() },
         body: JSON.stringify({
           endpointId: session.endpointId,
           model: session.model,
@@ -282,6 +269,12 @@ export default function Page() {
           if (payload === "[DONE]") continue;
           try {
             const obj = JSON.parse(payload);
+            if (obj.error) {
+              patchMessage(assistantId, `⚠️ ${obj.error}`);
+              setStatus("error");
+              gotToken = true; // don't also show the "no output" fallback
+              continue;
+            }
             const delta = obj.choices?.[0]?.delta?.content ?? "";
             if (delta) {
               if (!gotToken) {

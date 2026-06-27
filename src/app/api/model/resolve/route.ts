@@ -20,19 +20,11 @@ export async function GET(req: NextRequest) {
 
   if (!hf.ok) {
     if (hf.gated) {
+      // Return a structured gated result rather than an error.
       return NextResponse.json({
-        repoId,
-        params: null,
-        paramsLabel: null,
-        dtype: null,
-        estVramGb: null,
-        gpu: null,
-        gpuTypeIds: null,
-        containerDiskGb: null,
-        perSecondUsd: null,
-        perHourUsd: null,
-        gated: true,
-        fitsLargest: true,
+        repoId, params: null, paramsLabel: null, dtype: null, estVramGb: null,
+        gpu: null, gpuTypeIds: null, containerDiskGb: null,
+        perSecondUsd: null, perHourUsd: null, gated: true, fitsLargest: true,
         note: "This model is gated. Add a Hugging Face token to read it.",
       });
     }

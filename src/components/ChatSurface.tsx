@@ -41,9 +41,7 @@ export default function ChatSurface({
     }
   }
 
-  const placeholder = !canChat
-    ? "Launch a model to start chatting"
-    : "Message the model…";
+  const placeholder = !canChat ? "Launch a model to start chatting" : "Message the model…";
 
   return (
     <section className="flex h-full min-w-0 flex-1 flex-col bg-surface">
@@ -67,9 +65,7 @@ export default function ChatSurface({
       <div className="scroll-thin flex-1 overflow-y-auto px-5 py-6">
         {messages.length === 0 ? (
           <div className="mx-auto mt-16 max-w-sm text-center">
-            <p className="font-sans text-sm font-medium text-ink">
-              No messages yet
-            </p>
+            <p className="font-sans text-sm font-medium text-ink">No messages yet</p>
             <p className="mt-1 text-[13px] text-muted">
               {canChat
                 ? "Send something below to test the model. Reset clears the conversation but keeps your system prompt."
